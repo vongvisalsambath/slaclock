@@ -1,0 +1,276 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>SlaClock · Business-hours deadlines and SLA timers for .NET</title>
+  <meta name="description" content="SlaClock is a small .NET library for deadlines that respect business hours, holidays, time zones and pauses. Try it in your browser, then set it up in three steps." />
+  <meta name="theme-color" content="#2271e3" />
+  <base href="/" />
+  <link rel="icon" href="favicon.svg" type="image/svg+xml" />
+  <link rel="preload" id="webassembly" />
+  <link rel="stylesheet" href="css/site.css" />
+  <script type="importmap"></script>
+</head>
+<body>
+  <a class="skip" href="#main">Skip to content</a>
+
+  <header class="nav">
+    <a class="brand" href="#top"><span class="logo" aria-hidden="true"></span>SlaClock</a>
+    <nav aria-label="Sections">
+      <a href="#try">Try it</a>
+      <a href="#setup">Set up</a>
+      <a href="#app">Use it in an app</a>
+      <a href="#rules">Rules</a>
+      <a class="gh" href="https://github.com/vongvisalsambath/slaclock">GitHub</a>
+    </nav>
+  </header>
+
+  <main id="main">
+    <!-- ================================================================ hero -->
+    <section class="hero" id="top">
+      <div class="wrap hero-grid">
+        <div>
+          <p class="eyebrow">Open-source library for .NET</p>
+          <h1>Deadlines that know your <span class="hl">business hours.</span></h1>
+          <p class="lead">
+            “Respond within 16 business hours.” Simple to say, easy to get wrong: lunch breaks, weekends, public holidays,
+            time zones, daylight saving, and the days you spent waiting on the customer. SlaClock gets it right, so your
+            helpdesk, ticketing or approval system doesn't have to.
+          </p>
+          <div class="actions">
+            <a class="btn" href="#try">Try it in your browser</a>
+            <a class="btn ghost" href="#setup">Set it up in 3 steps</a>
+          </div>
+          <ul class="facts">
+            <li>.NET 8 and .NET 10</li><li>No dependencies</li><li>MIT licence</li><li>62 tests</li>
+          </ul>
+        </div>
+        <pre class="code hero-code"><code class="cs">var calendar = BusinessCalendar.Create("Asia/Phnom_Penh")
+    .Weekdays("08:00-12:00", "13:00-17:00")
+    .Closed(new DateOnly(2026, 11, 9), "Independence Day")
+    .Build();
+
+// Friday 15:30 + 16 business hours
+var due = calendar.Add(createdAt, TimeSpan.FromHours(16));
+// → Wednesday 11 Nov, 10:30</code></pre>
+      </div>
+    </section>
+
+    <!-- ================================================================ problem -->
+    <section class="band" aria-labelledby="why">
+      <div class="wrap">
+        <h2 id="why">Why a library for this?</h2>
+        <p class="lead narrow">Every team that builds a ticketing or approval system writes this code, and the bugs only show up in production, on holidays, and twice a year when the clocks change.</p>
+        <div class="cards4">
+          <article><h3>Lunch and weekends</h3><p>A ticket raised at 16:30 on Friday isn't late on Saturday morning. Only open hours count.</p></article>
+          <article><h3>Holidays and half days</h3><p>Public holidays, office closures over several days, and short days like New Year's Eve.</p></article>
+          <article><h3>Time zones and daylight saving</h3><p>Hours are wall-clock times in your office's zone. The day the clocks change really is an hour shorter or longer.</p></article>
+          <article><h3>Waiting on the customer</h3><p>Pause the clock while you wait for a reply, resume when they answer, and still know the deadline.</p></article>
+        </div>
+      </div>
+    </section>
+
+    <!-- ================================================================ try it -->
+    <section id="try" aria-labelledby="try-title">
+      <div class="wrap">
+        <p class="eyebrow">Try it</p>
+        <h2 id="try-title">Change anything and watch the deadline move.</h2>
+        <p class="lead narrow">
+          This is the real SlaClock library running in your browser on .NET WebAssembly, not a copy of it. The example is a
+          16-hour ticket created on a Friday afternoon, with a public holiday on Monday and a pause while waiting on the customer.
+          Drag <b>Check the status at</b> to move through time.
+        </p>
+        <div id="demo" class="demo-host">
+          <div class="loading" role="status">
+            <span class="spinner" aria-hidden="true"></span>
+            Loading .NET in your browser…
+          </div>
+          <noscript><p class="loading">The interactive demo needs JavaScript. Everything else on this page works without it.</p></noscript>
+        </div>
+      </div>
+    </section>
+
+    <!-- ================================================================ setup -->
+    <section id="setup" class="band" aria-labelledby="setup-title">
+      <div class="wrap">
+        <p class="eyebrow">Set up</p>
+        <h2 id="setup-title">Three steps.</h2>
+        <ol class="steps">
+          <li>
+            <div class="step-text">
+              <h3>Install the package</h3>
+              <p>Add it to the project that calculates deadlines, usually your API or service layer.</p>
+            </div>
+            <pre class="code"><code class="sh">dotnet add package SlaClock</code></pre>
+          </li>
+          <li>
+            <div class="step-text">
+              <h3>Describe when you're open</h3>
+              <p>Weekly hours (split them for lunch), holidays, ranges of closed days, yearly holidays and half days, in your office's time zone. <code>Build()</code> checks it all and refuses overlapping or empty hours.</p>
+            </div>
+            <pre class="code"><code class="cs">var calendar = BusinessCalendar.Create("Asia/Phnom_Penh")
+    .Weekdays("08:00-12:00", "13:00-17:00")
+    .On(DayOfWeek.Saturday, "08:00-12:00")
+    .Closed(new DateOnly(2026, 11, 9), "Independence Day")
+    .Closed(new DateOnly(2027, 4, 14), new DateOnly(2027, 4, 16), "Khmer New Year")
+    .ClosedEveryYear(1, 1, "International New Year")
+    .Hours(new DateOnly(2026, 12, 31), "New Year's Eve", ["08:00-12:00"])
+    .Build();</code></pre>
+          </li>
+          <li>
+            <div class="step-text">
+              <h3>Ask it questions</h3>
+              <p>Every answer comes back in your office's local time, whatever offset you pass in.</p>
+              <table class="calls">
+                <tbody>
+                  <tr><td>When is it due?</td><td><code>calendar.Add(from, TimeSpan.FromHours(16))</code></td></tr>
+                  <tr><td>How long did it take?</td><td><code>calendar.Elapsed(from, to)</code></td></tr>
+                  <tr><td>Are we open now?</td><td><code>calendar.IsOpen(now)</code></td></tr>
+                  <tr><td>When do we next open?</td><td><code>calendar.NextOpen(now)</code></td></tr>
+                  <tr><td>Hours or holiday on a date?</td><td><code>calendar.HoursOn(date)</code>, <code>calendar.DayName(date)</code></td></tr>
+                </tbody>
+              </table>
+            </div>
+            <pre class="code"><code class="cs">var created = new DateTimeOffset(2026, 11, 6, 15, 30, 0, TimeSpan.FromHours(7));
+
+calendar.Add(created, TimeSpan.FromHours(16));   // Wed 11 Nov 10:30 +07:00
+calendar.IsOpen(created.AddDays(3));             // false (Independence Day)
+calendar.Elapsed(created, created.AddDays(4));   // 07:30:00</code></pre>
+          </li>
+        </ol>
+      </div>
+    </section>
+
+    <!-- ================================================================ in an app -->
+    <section id="app" aria-labelledby="app-title">
+      <div class="wrap">
+        <p class="eyebrow">Use it in an app</p>
+        <h2 id="app-title">How it fits into a real helpdesk.</h2>
+        <p class="lead narrow">An ASP.NET Core app with a database, from startup to monthly reports. SlaClock never reads the clock or the database itself: you pass the times in, so it works with any storage and is easy to test.</p>
+
+        <div class="tabs" data-tabs>
+          <div class="tablist" role="tablist" aria-label="Steps in an app">
+            <button role="tab" aria-selected="true" aria-controls="t1" id="b1">1 · Startup</button>
+            <button role="tab" aria-selected="false" aria-controls="t2" id="b2" tabindex="-1">2 · New ticket</button>
+            <button role="tab" aria-selected="false" aria-controls="t3" id="b3" tabindex="-1">3 · Pause and resume</button>
+            <button role="tab" aria-selected="false" aria-controls="t4" id="b4" tabindex="-1">4 · Background check</button>
+            <button role="tab" aria-selected="false" aria-controls="t5" id="b5" tabindex="-1">5 · Reports and tests</button>
+          </div>
+
+          <div role="tabpanel" id="t1" aria-labelledby="b1" class="panel">
+            <p>Build the calendar once and share it. Calendars never change after <code>Build()</code>, so one instance is safe for the whole app.</p>
+            <pre class="code"><code class="cs">// Program.cs
+builder.Services.AddSingleton(
+    BusinessCalendar.Create("Asia/Phnom_Penh")
+        .Weekdays("08:00-12:00", "13:00-17:00")
+        .ClosedEveryYear(1, 1, "International New Year")
+        .Build());</code></pre>
+          </div>
+
+          <div role="tabpanel" id="t2" aria-labelledby="b2" class="panel" hidden>
+            <p>Work out the deadline when the ticket is created and store it, so “what's due today?” is a plain database query.</p>
+            <pre class="code"><code class="cs">public class TicketService(BusinessCalendar calendar, AppDb db)
+{
+    public async Task&lt;Ticket&gt; Create(NewTicket input)
+    {
+        var now = DateTimeOffset.UtcNow;
+        var ticket = new Ticket
+        {
+            Title = input.Title,
+            CreatedAt = now,
+            DueAt = calendar.Add(now, TimeSpan.FromHours(16)),
+        };
+        db.Tickets.Add(ticket);
+        await db.SaveChangesAsync();
+        return ticket;
+    }
+}</code></pre>
+          </div>
+
+          <div role="tabpanel" id="t3" aria-labelledby="b3" class="panel" hidden>
+            <p>Keep the timer's events (started, paused, resumed, stopped) in a table. When a ticket changes status, record the event and refresh the deadline. While paused there is no deadline: it moves with the pause.</p>
+            <pre class="code"><code class="cs">var sla = SlaTimer.FromEvents(calendar, TimeSpan.FromHours(16), ticket.SlaEvents);
+
+if (newStatus == "Waiting on customer") sla.Pause(now, "Waiting on customer");
+if (oldStatus == "Waiting on customer") sla.Resume(now);
+if (newStatus == "Resolved")            sla.Stop(now, "Resolved");
+
+ticket.SlaEvents = sla.Events.ToList();
+ticket.DueAt = sla.StatusAt(now).DueAt;   // null while paused</code></pre>
+          </div>
+
+          <div role="tabpanel" id="t4" aria-labelledby="b4" class="panel" hidden>
+            <p>A scheduled job checks open tickets every few minutes and warns the team before a deadline is missed.</p>
+            <pre class="code"><code class="cs">foreach (var ticket in openTickets)
+{
+    var status = SlaTimer.FromEvents(calendar, ticket.Target, ticket.SlaEvents)
+                         .StatusAt(DateTimeOffset.UtcNow);
+
+    if (status.IsAtRisk)   await notify.WarnTeam(ticket, status.Remaining);
+    if (status.IsBreached) await notify.Escalate(ticket, status.BreachedAt, status.Overdue);
+}</code></pre>
+          </div>
+
+          <div role="tabpanel" id="t5" aria-labelledby="b5" class="panel" hidden>
+            <p><code>StatusAt</code> answers for any moment, so reports read the outcome at the time each ticket was resolved. And because you always pass the time in, tests use fixed dates and give the same result every run.</p>
+            <pre class="code"><code class="cs">// Report: share of tickets that met their target
+var met = resolved.Count(t =>
+    !SlaTimer.FromEvents(calendar, t.Target, t.SlaEvents).StatusAt(t.ResolvedAt).IsBreached);
+
+// Test: Friday 16:00 + 8 business hours, with Monday a holiday
+[Fact]
+public void Due_on_Tuesday_afternoon()
+{
+    var due = calendar.Add(Local(2026, 11, 6, 16), TimeSpan.FromHours(8));
+    Assert.Equal(Local(2026, 11, 10, 16), due);
+}</code></pre>
+          </div>
+        </div>
+      </div>
+    </section>
+
+    <!-- ================================================================ rules -->
+    <section id="rules" class="band" aria-labelledby="rules-title">
+      <div class="wrap">
+        <p class="eyebrow">Rules worth knowing</p>
+        <h2 id="rules-title">Small decisions, made once.</h2>
+        <div class="rules">
+          <article><h3>Open at 08:00, closed at 17:00</h3><p>Ranges include their start and exclude their end, so 17:00 is closed and back-to-back ranges never double count.</p></article>
+          <article><h3>Due by closing time</h3><p>A deadline that lands exactly at closing is returned as 17:00 Friday, not as 08:00 Monday.</p></article>
+          <article><h3>Shifts past midnight</h3><p>Give each day its part, <code>22:00-24:00</code> and <code>00:00-06:00</code>. They join into one open period.</p></article>
+          <article><h3>Daylight saving</h3><p>Hours in the skipped hour move forward by the gap. In the repeated hour, the first occurrence counts.</p></article>
+          <article><h3>Breached means over</h3><p>Exactly on target is still on time. <code>IsAtRisk</code> turns on at 80 % of the target by default.</p></article>
+          <article><h3>Wrong setups fail</h3><p>Overlapping hours, a calendar with no hours, unknown time zones and events out of order throw clear errors.</p></article>
+        </div>
+      </div>
+    </section>
+
+    <!-- ================================================================ faq -->
+    <section aria-labelledby="faq-title">
+      <div class="wrap faq">
+        <h2 id="faq-title">Questions</h2>
+        <details><summary>Does it need a database or a server?</summary><p>No. It's plain calculation on values you pass in. Store calendars and timer events however you like.</p></details>
+        <details><summary>Is it safe to share between requests?</summary><p>Calendars are immutable and thread-safe; register one as a singleton. Timers are per ticket and not shared.</p></details>
+        <details><summary>Which time zones work?</summary><p>Any IANA id (<code>Asia/Phnom_Penh</code>, <code>Europe/London</code>) or Windows id that your operating system knows. Use <code>BusinessCalendar.AlwaysOpen</code> for 24/7 targets.</p></details>
+        <details><summary>Can I load hours and holidays from settings?</summary><p>Not built in yet: for now you read them from your settings and call the builder. Loading from configuration is planned for version 0.2.</p></details>
+        <details><summary>Is it free?</summary><p>Yes, MIT licensed. Use it in commercial software.</p></details>
+      </div>
+    </section>
+  </main>
+
+  <footer class="foot">
+    <div class="wrap">
+      <span>SlaClock · MIT licence</span>
+      <span>Built by <a href="https://vongvisalsambath.vercel.app">Vong Visalsambath</a> · <a href="https://github.com/vongvisalsambath/slaclock">GitHub</a></span>
+    </div>
+  </footer>
+
+  <div id="blazor-error-ui" role="alert">
+    The demo hit an error. <a href="." class="reload">Reload</a>
+    <button class="dismiss" type="button" aria-label="Dismiss">×</button>
+  </div>
+  <script src="js/site.js" defer></script>
+  <script src="_framework/blazor.webassembly#[.{fingerprint}].js"></script>
+</body>
+</html>

@@ -2,6 +2,9 @@
   <Folder Name="/samples/">
     <Project Path="samples/QuickStart/QuickStart.csproj" />
   </Folder>
+  <Folder Name="/site/">
+    <Project Path="site/SlaClock.Demo/SlaClock.Demo.csproj" />
+  </Folder>
   <Folder Name="/src/">
     <Project Path="src/SlaClock/SlaClock.csproj" />
   </Folder>

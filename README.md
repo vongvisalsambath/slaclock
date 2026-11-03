@@ -2,6 +2,8 @@
 
 **Business-hours deadlines and pausable SLA timers for .NET.**
 
+**[Try it in your browser →](https://slaclock.vercel.app)** The demo runs this library on .NET WebAssembly: change the hours, holidays and pauses, and watch the deadline move.
+
 Every helpdesk, ticketing and approval system ends up needing the same thing: *"respond within 16 business hours — not counting lunch, weekends, public holidays, or the time we spent waiting on the customer."* It looks simple and is easy to get subtly wrong. SlaClock does it once, carefully, with tests.
 
 ```csharp
@@ -104,7 +106,10 @@ There are other business-hours packages on NuGet. SlaClock exists because the on
 ```
 dotnet test                                   # 62 tests, including daylight-saving cases and 3,000 random round trips
 dotnet run --project samples/QuickStart
+dotnet run --project site/SlaClock.Demo        # the demo site, at http://localhost:5000
 ```
+
+The site (`site/SlaClock.Demo`) is a static page with one Blazor WebAssembly component for the demo. Vercel builds it from `vercel.json`.
 
 The core rule the tests enforce on random inputs: for any start and duration, `Elapsed(from, Add(from, d)) == d`, and nothing open is skipped.
 

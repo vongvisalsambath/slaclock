@@ -1,0 +1,400 @@
+@using System.Globalization
+@using System.Text
+@namespace SlaClock.Demo
+@inject IJSRuntime JS
+
+<div class="demo">
+    <div class="demo-controls">
+        <fieldset>
+            <legend><span class="n">1</span> Opening hours</legend>
+            <label class="field">
+                <span>Time zone</span>
+                <select @bind="zoneId" @bind:after="Compute">
+                    @foreach (var z in Zones)
+                    {
+                        <option value="@z">@z</option>
+                    }
+                </select>
+            </label>
+            <div class="presets" role="group" aria-label="Presets">
+                @foreach (var (name, _) in Presets)
+                {
+                    <button type="button" class="chip @(preset == name ? "is-on" : "")" @onclick="() => ApplyPreset(name)">@name</button>
+                }
+            </div>
+            <div class="days">
+                @for (var i = 0; i < 7; i++)
+                {
+                    var idx = i;
+                    <label class="day">
+                        <span>@DayShort[idx]</span>
+                        <input value="@hours[idx]" placeholder="closed" spellcheck="false"
+                               @oninput="e => { hours[idx] = e.Value?.ToString() ?? string.Empty; preset = string.Empty; Compute(); }" />
+                    </label>
+                }
+            </div>
+            <p class="hint">Ranges like <code>08:00-12:00, 13:00-17:00</code>. Leave empty for closed. Try overlapping two ranges to see the library refuse.</p>
+        </fieldset>
+
+        <fieldset>
+            <legend><span class="n">2</span> Holidays</legend>
+            @if (holidays.Count == 0)
+            {
+                <p class="hint">No holidays.</p>
+            }
+            <ul class="rows">
+                @foreach (var h in holidays)
+                {
+                    var item = h;
+                    <li>
+                        <span>@item.Date.ToString("ddd d MMM yyyy", Inv)</span>
+                        <span class="muted">@item.Name</span>
+                        <button type="button" class="x" aria-label="Remove @item.Name" @onclick="() => { holidays.Remove(item); Compute(); }">×</button>
+                    </li>
+                }
+            </ul>
+            <div class="add">
+                <input type="date" @bind="newHoliday" aria-label="Holiday date" />
+                <input type="text" @bind="newHolidayName" placeholder="Name" aria-label="Holiday name" />
+                <button type="button" class="btn-sm" @onclick="AddHoliday">Add</button>
+            </div>
+        </fieldset>
+
+        <fieldset>
+            <legend><span class="n">3</span> The ticket</legend>
+            <div class="grid2">
+                <label class="field">
+                    <span>Created</span>
+                    <input type="datetime-local" @bind="created" @bind:format="yyyy-MM-ddTHH:mm" @bind:after="Compute" />
+                </label>
+                <label class="field">
+                    <span>Target (business hours)</span>
+                    <input type="number" min="1" max="200" step="1" @bind="targetHours" @bind:after="Compute" />
+                </label>
+            </div>
+            <label class="field">
+                <span>At risk from <b>@atRiskPercent %</b> of the target</span>
+                <input type="range" min="50" max="100" step="5" @bind="atRiskPercent" @bind:event="oninput" @bind:after="Compute" />
+            </label>
+            <p class="sub">Pauses (waiting on the customer)</p>
+            <ul class="rows pauses">
+                @foreach (var p in pauses)
+                {
+                    var item = p;
+                    <li>
+                        <input type="datetime-local" aria-label="Paused at" @bind="item.From" @bind:format="yyyy-MM-ddTHH:mm" @bind:after="Compute" />
+                        <span class="muted">→</span>
+                        <input type="datetime-local" aria-label="Resumed at" @bind="item.To" @bind:format="yyyy-MM-ddTHH:mm" @bind:after="Compute" />
+                        <button type="button" class="x" aria-label="Remove pause" @onclick="() => { pauses.Remove(item); Compute(); }">×</button>
+                    </li>
+                }
+            </ul>
+            <button type="button" class="btn-sm ghost" @onclick="AddPause">+ Add a pause</button>
+        </fieldset>
+    </div>
+
+    <div class="demo-output" aria-live="polite">
+        @if (error is not null)
+        {
+            <div class="error" role="alert">
+                <b>SlaClock refused this setup</b>
+                <p>@error</p>
+                <p class="muted">That's on purpose: a wrong calendar is reported, not turned into wrong deadlines.</p>
+            </div>
+        }
+        else if (model is { } m)
+        {
+            <div class="scrub">
+                <label for="now">Check the status at <b>@Fmt(m.Now)</b></label>
+                <input id="now" type="range" min="0" max="@m.SliderMax" step="1" @bind="nowStep" @bind:event="oninput" @bind:after="Compute" />
+            </div>
+
+            <div class="cards">
+                <div class="card big @StateClass(m.Status)">
+                    <span class="label">@(m.Status.IsBreached ? "Breached at" : m.Status.State == SlaState.Paused ? "Deadline" : "Due")</span>
+                    <b>@(m.Status.DueAt is { } d ? Fmt(d) : m.Status.State == SlaState.Paused ? "on hold while paused" : "—")</b>
+                    <span class="state">@StateText(m.Status)</span>
+                </div>
+                <div class="card"><span class="label">Counted</span><b>@Dur(m.Status.Elapsed)</b></div>
+                <div class="card"><span class="label">@(m.Status.IsBreached ? "Overdue" : "Left")</span><b>@Dur(m.Status.IsBreached ? m.Status.Overdue : m.Status.Remaining)</b></div>
+            </div>
+
+            <div class="timeline" role="img" aria-label="Week view of opening hours, counted time, pauses and the deadline">
+                <div class="tl-head"><span></span><div class="tl-scale"><i>00</i><i>06</i><i>12</i><i>18</i><i>24</i></div></div>
+                @foreach (var row in m.Rows)
+                {
+                    <div class="tl-row @(row.Holiday is not null ? "is-holiday" : "")">
+                        <span class="tl-day">@row.Label @if (row.Holiday is not null) {<small>@row.Holiday</small>}</span>
+                        <div class="tl-bar">
+                            @foreach (var s in row.Spans)
+                            {
+                                <span class="seg @s.Kind" style="left:@P(s.From)%;width:@P(s.To - s.From)%"></span>
+                            }
+                            @foreach (var k in row.Marks)
+                            {
+                                <span class="mark @k.Kind" style="left:@P(k.At)%" title="@k.Title"></span>
+                            }
+                        </div>
+                    </div>
+                }
+                <div class="legend">
+                    <span><i class="seg open"></i>Open</span>
+                    <span><i class="seg counted"></i>Counted</span>
+                    <span><i class="seg ahead"></i>Still to count</span>
+                    <span><i class="seg over"></i>Over the target</span>
+                    <span><i class="seg paused"></i>Paused</span>
+                    <span><i class="mark due"></i>Deadline</span>
+                    <span><i class="mark now"></i>Now</span>
+                </div>
+            </div>
+        }
+    </div>
+
+    <div class="demo-code">
+        <div class="code-head">
+            <span>The same thing in C#</span>
+            <button type="button" class="btn-sm ghost" @onclick="CopyCode">@copyLabel</button>
+        </div>
+        <pre class="code"><code>@((MarkupString)CSharp.Highlight(code))</code></pre>
+    </div>
+</div>
+
+@code {
+    private static readonly CultureInfo Inv = CultureInfo.InvariantCulture;
+    private static readonly string[] Zones = ["Asia/Phnom_Penh", "Asia/Singapore", "Asia/Tokyo", "Europe/London", "Europe/Berlin", "America/New_York", "America/Los_Angeles", "Australia/Sydney", "UTC"];
+    private static readonly DayOfWeek[] DayOrder = [DayOfWeek.Monday, DayOfWeek.Tuesday, DayOfWeek.Wednesday, DayOfWeek.Thursday, DayOfWeek.Friday, DayOfWeek.Saturday, DayOfWeek.Sunday];
+    private static readonly string[] DayShort = ["Mon", "Tue", "Wed", "Thu", "Fri", "Sat", "Sun"];
+    private static readonly (string Name, string[] Hours)[] Presets =
+    [
+        ("Office with lunch", ["08:00-12:00, 13:00-17:00", "08:00-12:00, 13:00-17:00", "08:00-12:00, 13:00-17:00", "08:00-12:00, 13:00-17:00", "08:00-12:00, 13:00-17:00", "08:00-12:00", ""]),
+        ("9 to 5", ["09:00-17:00", "09:00-17:00", "09:00-17:00", "09:00-17:00", "09:00-17:00", "", ""]),
+        ("Night shift", ["22:00-24:00", "00:00-06:00, 22:00-24:00", "00:00-06:00, 22:00-24:00", "00:00-06:00, 22:00-24:00", "00:00-06:00, 22:00-24:00", "00:00-06:00", ""]),
+        ("24/7", ["00:00-24:00", "00:00-24:00", "00:00-24:00", "00:00-24:00", "00:00-24:00", "00:00-24:00", "00:00-24:00"]),
+    ];
+
+    private sealed class Holiday { public DateOnly Date; public string Name = ""; }
+    private sealed class Pause { public DateTime From { get; set; } public DateTime To { get; set; } }
+
+    // inputs: the README scenario
+    private string zoneId = "Asia/Phnom_Penh";
+    private string preset = "Office with lunch";
+    private readonly string[] hours = (string[])Presets[0].Hours.Clone();
+    private readonly List<Holiday> holidays = [new() { Date = new DateOnly(2026, 11, 9), Name = "Independence Day" }];
+    private DateOnly newHoliday = new(2026, 11, 12);
+    private string newHolidayName = "";
+    private DateTime created = new(2026, 11, 6, 15, 30, 0);
+    private int targetHours = 16;
+    private int atRiskPercent = 80;
+    private readonly List<Pause> pauses = [new() { From = new DateTime(2026, 11, 7, 9, 0, 0), To = new DateTime(2026, 11, 10, 14, 0, 0) }];
+    private int nowStep = -1; // quarter hours from the start of the window; -1 = pick a default
+
+    // outputs
+    private string? error;
+    private Model? model;
+    private string code = "";
+    private string copyLabel = "Copy";
+
+    private sealed record Span(double From, double To, string Kind);
+    private sealed record Mark(double At, string Kind, string Title);
+    private sealed record Row(string Label, string? Holiday, List<Span> Spans, List<Mark> Marks);
+    private sealed record Model(SlaStatus Status, DateTimeOffset Now, int SliderMax, List<Row> Rows);
+
+    protected override void OnInitialized() => Compute();
+
+    private void ApplyPreset(string name)
+    {
+        preset = name;
+        var p = Presets.First(x => x.Name == name).Hours;
+        for (var i = 0; i < 7; i++) hours[i] = p[i];
+        Compute();
+    }
+
+    private void AddHoliday()
+    {
+        if (holidays.Any(h => h.Date == newHoliday)) return;
+        holidays.Add(new Holiday { Date = newHoliday, Name = string.IsNullOrWhiteSpace(newHolidayName) ? "Holiday" : newHolidayName.Trim() });
+        holidays.Sort((a, b) => a.Date.CompareTo(b.Date));
+        newHolidayName = "";
+        Compute();
+    }
+
+    private void AddPause()
+    {
+        var after = pauses.Count > 0 ? pauses[^1].To : created;
+        pauses.Add(new Pause { From = after.AddHours(2), To = after.AddHours(20) });
+        Compute();
+    }
+
+    private async Task CopyCode()
+    {
+        try { await JS.InvokeVoidAsync("navigator.clipboard.writeText", code); copyLabel = "Copied"; }
+        catch { copyLabel = "Select and copy"; }
+        StateHasChanged();
+        await Task.Delay(1800);
+        copyLabel = "Copy";
+    }
+
+    private void Compute()
+    {
+        error = null;
+        model = null;
+        code = GenerateCode();
+        try
+        {
+            var calendar = BuildCalendar();
+            var zone = calendar.TimeZone;
+            DateTimeOffset At(DateTime local) => new(local, zone.GetUtcOffset(local));
+
+            var sla = new SlaTimer(calendar, TimeSpan.FromHours(Math.Clamp(targetHours, 1, 200)), atRiskPercent / 100.0);
+            var start = At(created);
+            sla.Start(start);
+            foreach (var p in pauses.OrderBy(p => p.From))
+            {
+                sla.Pause(At(p.From), "Waiting on customer");
+                sla.Resume(At(p.To));
+            }
+
+            // the window: from the day the ticket was created to a day past the final deadline
+            var last = sla.Events[^1].At;
+            var finalDue = sla.StatusAt(last).DueAt ?? last;
+            var firstDay = DateOnly.FromDateTime(created);
+            var lastDay = DateOnly.FromDateTime(TimeZoneInfo.ConvertTime(finalDue, zone).DateTime).AddDays(1);
+            if (lastDay.DayNumber - firstDay.DayNumber > 20) lastDay = firstDay.AddDays(20);
+            if (lastDay.DayNumber - firstDay.DayNumber < 4) lastDay = firstDay.AddDays(4);
+
+            var windowStart = start;
+            var windowEnd = At(lastDay.AddDays(1).ToDateTime(TimeOnly.MinValue));
+            var sliderMax = (int)((windowEnd - windowStart).TotalMinutes / 15);
+            if (nowStep < 0 || nowStep > sliderMax)
+            {
+                // start where it's interesting: the first moment 60 % of the target has been counted
+                int lo = 0, hi = sliderMax;
+                var goal = sla.Target * 0.6;
+                while (lo < hi)
+                {
+                    var mid = (lo + hi) / 2;
+                    if (sla.StatusAt(windowStart.AddMinutes(mid * 15)).Elapsed >= goal) hi = mid; else lo = mid + 1;
+                }
+                nowStep = lo;
+            }
+            var now = windowStart.AddMinutes(nowStep * 15);
+            var status = sla.StatusAt(now);
+
+            // running stretches up to now, and the stretch still to count (if running)
+            var running = new List<(DateTimeOffset From, DateTimeOffset To)>();
+            DateTimeOffset? since = null;
+            foreach (var e in sla.Events.Where(e => e.At <= now))
+            {
+                if (e.Kind is SlaEventKind.Started or SlaEventKind.Resumed) since = e.At;
+                else if (since is { } s) { running.Add((s, e.At)); since = null; }
+            }
+            if (since is { } open) running.Add((open, now));
+
+            var rows = new List<Row>();
+            for (var day = firstDay; day <= lastDay; day = day.AddDays(1))
+            {
+                var dayStart = At(day.ToDateTime(TimeOnly.MinValue));
+                var dayEnd = At(day.AddDays(1).ToDateTime(TimeOnly.MinValue));
+                double Pos(DateTimeOffset t) => Math.Clamp((TimeZoneInfo.ConvertTime(t, zone).DateTime - day.ToDateTime(TimeOnly.MinValue)).TotalHours, 0, 24);
+                var spans = new List<Span>();
+                var marks = new List<Mark>();
+                void Add(DateTimeOffset a, DateTimeOffset b, string kind)
+                {
+                    var s = a > dayStart ? a : dayStart; var e = b < dayEnd ? b : dayEnd;
+                    if (e > s) spans.Add(new Span(Pos(s), e >= dayEnd ? 24 : Pos(e), kind));
+                }
+                foreach (var (a, b) in calendar.OpenPeriods(dayStart, dayEnd)) Add(a, b, "open");
+                foreach (var p in pauses) Add(At(p.From), At(p.To), "paused");
+                foreach (var (a, b) in running)
+                    foreach (var (oa, ob) in calendar.OpenPeriods(a, b))
+                    {
+                        if (status.BreachedAt is { } br && ob > br)
+                        {
+                            if (oa < br) Add(oa, br, "counted");
+                            Add(oa > br ? oa : br, ob, "over");
+                        }
+                        else Add(oa, ob, "counted");
+                    }
+                if (status.State == SlaState.Running && !status.IsBreached && status.DueAt is { } due)
+                    foreach (var (a, b) in calendar.OpenPeriods(now, due)) Add(a, b, "ahead");
+
+                void M(DateTimeOffset t, string kind, string title) { if (t >= dayStart && t < dayEnd) marks.Add(new Mark(Pos(t), kind, title)); }
+                M(start, "created", "Created " + Fmt(start));
+                if (status.DueAt is { } d) M(d, "due", (status.IsBreached ? "Breached " : "Due ") + Fmt(d));
+                M(now, "now", "Now " + Fmt(now));
+
+                rows.Add(new Row(day.ToString("ddd d MMM", Inv), calendar.DayName(day), spans, marks));
+            }
+            model = new Model(status, now, sliderMax, rows);
+        }
+        catch (Exception e) when (e is FormatException or InvalidOperationException or ArgumentException)
+        {
+            error = e.Message;
+        }
+    }
+
+    private BusinessCalendar BuildCalendar()
+    {
+        var b = BusinessCalendar.Create(zoneId);
+        for (var i = 0; i < 7; i++)
+        {
+            var ranges = Ranges(hours[i]);
+            if (ranges.Length > 0) b.On(DayOrder[i], ranges.Select(r => (TimeRange)r).ToArray());
+        }
+        foreach (var h in holidays) b.Closed(h.Date, h.Name);
+        return b.Build();
+    }
+
+    private static string[] Ranges(string text) =>
+        text.Split([',', ';'], StringSplitOptions.RemoveEmptyEntries | StringSplitOptions.TrimEntries);
+
+    private string GenerateCode()
+    {
+        var sb = new StringBuilder();
+        sb.Append("var calendar = BusinessCalendar.Create(\"").Append(zoneId).Append("\")\n");
+        var lists = hours.Select(h => Ranges(h)).ToArray();
+        string Args(string[] r) => string.Join(", ", r.Select(x => $"\"{x}\""));
+        bool Same(int from, int to) => Enumerable.Range(from, to - from + 1).All(i => lists[i].SequenceEqual(lists[from]));
+        var done = new bool[7];
+        if (lists[0].Length > 0 && Same(0, 6)) { sb.Append("    .EveryDay(").Append(Args(lists[0])).Append(")\n"); done = [true, true, true, true, true, true, true]; }
+        else if (lists[0].Length > 0 && Same(0, 4)) { sb.Append("    .Weekdays(").Append(Args(lists[0])).Append(")\n"); for (var i = 0; i < 5; i++) done[i] = true; }
+        for (var i = 0; i < 7; i++)
+            if (!done[i] && lists[i].Length > 0) sb.Append("    .On(DayOfWeek.").Append(DayOrder[i]).Append(", ").Append(Args(lists[i])).Append(")\n");
+        foreach (var h in holidays) sb.Append($"    .Closed(new DateOnly({h.Date.Year}, {h.Date.Month}, {h.Date.Day}), \"{h.Name.Replace("\"", "\\\"")}\")\n");
+        sb.Append("    .Build();\n\n");
+        sb.Append($"var sla = new SlaTimer(calendar, TimeSpan.FromHours({targetHours}), atRiskAt: {(atRiskPercent / 100.0).ToString("0.##", Inv)});\n");
+        sb.Append("sla.Start(").Append(Lit(created)).Append(");\n");
+        foreach (var p in pauses.OrderBy(p => p.From))
+        {
+            sb.Append("sla.Pause(").Append(Lit(p.From)).Append(", \"Waiting on customer\");\n");
+            sb.Append("sla.Resume(").Append(Lit(p.To)).Append(");\n");
+        }
+        sb.Append("\nSlaStatus status = sla.StatusAt(DateTimeOffset.UtcNow);\n");
+        sb.Append("// status.DueAt, status.Remaining, status.IsAtRisk, status.IsBreached ...");
+        return sb.ToString();
+    }
+
+    private string Lit(DateTime local)
+    {
+        TimeSpan off;
+        try { off = TimeZoneInfo.FindSystemTimeZoneById(zoneId).GetUtcOffset(local); } catch { off = TimeSpan.Zero; }
+        var o = off == TimeSpan.Zero ? "TimeSpan.Zero" : $"TimeSpan.FromHours({off.TotalHours.ToString("0.##", Inv)})";
+        return $"new DateTimeOffset({local.Year}, {local.Month}, {local.Day}, {local.Hour}, {local.Minute}, 0, {o})";
+    }
+
+    private static string Fmt(DateTimeOffset t) => t.ToString("ddd d MMM, HH:mm", Inv);
+    private static double P(double hours) => Math.Round(hours / 24 * 100, 3);
+    private static string Dur(TimeSpan t)
+    {
+        var h = (int)t.TotalHours; var m = t.Minutes;
+        return m == 0 ? $"{h} h" : h == 0 ? $"{m} min" : $"{h} h {m} min";
+    }
+    private static string StateClass(SlaStatus s) => s.IsBreached ? "is-breached" : s.IsAtRisk ? "is-risk" : s.State == SlaState.Paused ? "is-paused" : "is-ok";
+    private static string StateText(SlaStatus s) => s.IsBreached ? "Breached" : s.State switch
+    {
+        SlaState.Paused => s.IsAtRisk ? "Paused · at risk" : "Paused · waiting on customer",
+        SlaState.Running => s.IsAtRisk ? "Running · at risk" : "Running · on track",
+        SlaState.Stopped => "Stopped",
+        _ => "Not started",
+    };
+}
