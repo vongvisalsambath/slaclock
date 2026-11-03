@@ -1,0 +1,32 @@
+﻿<Project Sdk="Microsoft.NET.Sdk">
+
+  <PropertyGroup>
+    <TargetFrameworks>net8.0;net10.0</TargetFrameworks>
+    <ImplicitUsings>enable</ImplicitUsings>
+    <Nullable>enable</Nullable>
+    <GenerateDocumentationFile>true</GenerateDocumentationFile>
+    <TreatWarningsAsErrors>true</TreatWarningsAsErrors>
+    <Deterministic>true</Deterministic>
+    <IsAotCompatible>true</IsAotCompatible>
+
+    <PackageId>SlaClock</PackageId>
+    <Version>0.1.0</Version>
+    <Authors>Vong Visalsambath</Authors>
+    <Description>Business-hours deadlines and pausable SLA timers for .NET. Weekly hours with split shifts, holidays and half days, in any time zone, with correct daylight-saving handling.</Description>
+    <PackageTags>sla;business-hours;working-hours;deadline;holidays;timezone;service-level;helpdesk</PackageTags>
+    <PackageLicenseExpression>MIT</PackageLicenseExpression>
+    <PackageReadmeFile>README.md</PackageReadmeFile>
+    <PackageProjectUrl>https://github.com/vongvisalsambath/slaclock</PackageProjectUrl>
+    <RepositoryUrl>https://github.com/vongvisalsambath/slaclock</RepositoryUrl>
+    <RepositoryType>git</RepositoryType>
+  </PropertyGroup>
+
+  <ItemGroup>
+    <None Include="../../README.md" Pack="true" PackagePath="/" />
+  </ItemGroup>
+
+  <ItemGroup>
+    <InternalsVisibleTo Include="SlaClock.Tests" />
+  </ItemGroup>
+
+</Project>
