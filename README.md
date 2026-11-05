@@ -25,7 +25,7 @@ var due = calendar.Add(ticket.CreatedAt, TimeSpan.FromHours(16));
 ## Install
 
 ```
-dotnet add package SlaClock
+dotnet add package SlaClock      # https://www.nuget.org/packages/SlaClock
 ```
 
 ## Calendars
