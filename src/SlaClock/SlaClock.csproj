@@ -16,7 +16,7 @@
     <PackageTags>sla;business-hours;working-hours;deadline;holidays;timezone;service-level;helpdesk</PackageTags>
     <PackageLicenseExpression>MIT</PackageLicenseExpression>
     <PackageReadmeFile>README.md</PackageReadmeFile>
-    <PackageProjectUrl>https://github.com/vongvisalsambath/slaclock</PackageProjectUrl>
+    <PackageProjectUrl>https://slaclock.vercel.app</PackageProjectUrl>
     <RepositoryUrl>https://github.com/vongvisalsambath/slaclock</RepositoryUrl>
     <RepositoryType>git</RepositoryType>
   </PropertyGroup>
